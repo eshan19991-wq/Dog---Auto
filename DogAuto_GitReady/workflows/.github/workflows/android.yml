@@ -1,0 +1,47 @@
+name: Build DogAuto APK
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
+
+    - name: Build Release APK
+      run: ./gradlew assembleRelease
+
+    - name: Generate test keystore
+      run: keytool -genkey -v -keystore dogauto.jks -alias dogauto -keyalg RSA -keysize 2048 -validity 10000 -storepass dogautopass -keypass dogautopass -dname "CN=DogAuto, OU=Dev, O=DogAuto, L=Internet, S=NA, C=US"
+
+    - name: Sign Release APK
+      run: |
+        jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore dogauto.jks -storepass dogautopass -keypass dogautopass app/build/outputs/apk/release/app-release-unsigned.apk dogauto
+        mv app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/app-release.apk
+
+    - name: Upload APKs
+      uses: actions/upload-artifact@v3
+      with:
+        name: DogAuto-APK
+        path: |
+          app/build/outputs/apk/debug/app-debug.apk
+          app/build/outputs/apk/release/app-release.apk
